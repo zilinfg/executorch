@@ -1939,7 +1939,7 @@ TEST_F(ColdOpenGroupTest, FinalizersRunBetweenLaunchedGroups) {
   EXPECT_LE(*active, 2u);
 }
 
-TEST_F(ColdOpenGroupTest, PrefixCachingDisablesGrouping) {
+TEST_F(ColdOpenGroupTest, PrefixCachingStillGroupsShortPrompts) {
   config.prefix_cache_capacity = 1;
   start_with_group_budget(8);
   auto parked = park_control();
@@ -1947,9 +1947,10 @@ TEST_F(ColdOpenGroupTest, PrefixCachingDisablesGrouping) {
   last.hold();
   handles.push_back(queue_deferred(&last, [] { return text("c"); }));
   control.release();
-  // Without grouping the first request runs before the second is prepared.
+  // The two short prompts share a group, which looks up and opens sessions
+  // only once every member is prepared: only the parked session is open.
   ASSERT_TRUE(last.wait());
-  ASSERT_TRUE(wait_until([&] { return ran(1); }));
+  EXPECT_EQ(executor.opened().size(), 1u);
   last.release();
   parked.wait();
   for (auto& handle : handles) {
